@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚔️ CLASH RAYON ⚔️</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>⚔️ CLASH RAYON ⚔️</h1>
+
+    <div id="game-area">
+        <div class="river"></div>
+        <div class="bridge"></div>
+        
+        <div class="tower enemy" id="enemy-tower">
+            <div class="tower-hp"><div class="tower-hp-fill" id="enemy-hp"></div></div>
+            ВРАГ
+        </div>
+        <div class="tower player" id="player-tower">
+            <div class="tower-hp"><div class="tower-hp-fill" id="player-hp"></div></div>
+            ТЫ
+        </div>
+    </div>
+
+    <div id="ui">
+        <div class="elixir-container">
+            <div class="elixir-bar">
+                <div class="elixir-fill" id="elixir-fill"></div>
+            </div>
+            <div class="elixir-text" id="elixir-text">5/10</div>
+        </div>
+
+        <div class="cards-container">
+            <div class="card" id="card-gopnik" onclick="spawnUnit('gopnik')">
+                <div class="card-cost">3</div>
+                <div class="card-icon">👕</div>
+                <div class="card-name">Гопник</div>
+            </div>
+            
+            <div class="card" id="card-babka" onclick="spawnUnit('babka')">
+                <div class="card-cost">5</div>
+                <div class="card-icon">👵</div>
+                <div class="card-name">Бабушка</div>
+            </div>
+            
+            <div class="card" id="card-dvornik" onclick="spawnUnit('dvornik')">
+                <div class="card-cost">4</div>
+                <div class="card-icon">🧹</div>
+                <div class="card-name">Дворник</div>
+            </div>
+            
+            <div class="card" id="card-podezdniy" onclick="spawnUnit('podezdniy')">
+                <div class="card-cost">6</div>
+                <div class="card-icon">🚪</div>
+                <div class="card-name">Подъездный</div>
+            </div>
+            
+            <div class="card" id="card-sigareta" onclick="spawnUnit('sigareta')">
+                <div class="card-cost">2</div>
+                <div class="card-icon">🚬</div>
+                <div class="card-name">Сигарета</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over" class="hidden">
+        <div class="game-over-content">
+            <h2 id="game-over-title"></h2>
+            <button onclick="location.reload()">Играть снова</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
