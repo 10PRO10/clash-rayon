@@ -25,7 +25,6 @@ const maxTowerHP = 1000;
 let lastSyncTime = 0;
 let gameStartTime = 0;
 
-// DOM элементы
 let gameArea, elixirFill, elixirText, enemyTower, playerTower;
 
 // ==================== ИНИЦИАЛИЗАЦИЯ SUPABASE ====================
@@ -352,12 +351,13 @@ function endGame(result) {
     }
 }
 
-// ==================== МУЛЬТИПЛЕЕР - ГЛОБАЛЬНЫЕ ФУНКЦИИ ====================
+// ==================== 🔥 МУЛЬТИПЛЕЕР - ИСПРАВЛЕННЫЙ 🔥 ====================
+
 window.createRoom = async function() {
-    console.log('🔵 Создание комнаты...');
+    console.log('🔵 [CREATE] Начало создания комнаты...');
     
     if (!supabaseClient && !initSupabase()) {
-        alert('Ошибка подключения к серверу! Проверь консоль.');
+        alert('❌ Ошибка подключения к серверу!');
         return;
     }
     
@@ -365,7 +365,7 @@ window.createRoom = async function() {
     isPlayer1 = true;
     roomCode = generateRoomCode();
     
-    console.log('🔵 Код комнаты:', roomCode);
+    console.log('🔵 [CREATE] Код комнаты:', roomCode);
     
     try {
         const { data, error } = await supabaseClient
@@ -381,36 +381,48 @@ window.createRoom = async function() {
             .single();
         
         if (error) {
-            console.error('❌ Ошибка создания комнаты:', error);
-            alert('Ошибка: ' + error.message);
+            console.error('❌ [CREATE] Ошибка Supabase:', error);
+            alert('Ошибка создания комнаты: ' + error.message);
             return;
         }
         
         roomId = data.id;
-        console.log('✅ Комната создана:', roomId);
+        console.log('✅ [CREATE] Комната создана:', roomId);
         showWaitingScreen(roomCode);
         subscribeToRoom(roomId);
     } catch (e) {
-        console.error('❌ Ошибка:', e);
-        alert('Ошибка создания комнаты: ' + e.message);
+        console.error('❌ [CREATE] Исключение:', e);
+        alert('Ошибка: ' + e.message);
     }
 };
 
 window.joinRoom = async function() {
-    console.log('🔵 Присоединение к комнате...');
+    console.log('🔵 [JOIN] Начало присоединения...');
     
     if (!supabaseClient && !initSupabase()) {
-        alert('Ошибка подключения к серверу!');
+        alert('❌ Ошибка подключения к серверу!');
         return;
     }
     
     const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-    if (code.length !== 6) { alert('Введи 6-значный код!'); return; }
     
-    console.log('🔵 Код для входа:', code);
+    console.log('🔵 [JOIN] Введённый код:', code);
+    
+    if (code.length !== 6) {
+        alert('⚠️ Введи 6-значный код!');
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    const joinBtn = event.target;
+    const originalText = joinBtn.textContent;
+    joinBtn.textContent = '⏳ Подключение...';
+    joinBtn.disabled = true;
     
     try {
-        // Сначала проверяем существует ли комната
+        // Шаг 1: Проверяем существует ли комната
+        console.log('🔵 [JOIN] Шаг 1: Поиск комнаты...');
+        
         const { data: room, error: findError } = await supabaseClient
             .from('game_rooms')
             .select('*')
@@ -418,13 +430,27 @@ window.joinRoom = async function() {
             .eq('status', 'waiting')
             .single();
         
-        if (findError || !room) {
-            console.error('❌ Комната не найдена:', findError);
-            alert('Комната не найдена или игра уже началась!');
+        if (findError) {
+            console.error('❌ [JOIN] Ошибка поиска:', findError);
+            alert('❌ Комната не найдена! Проверь код.');
+            joinBtn.textContent = originalText;
+            joinBtn.disabled = false;
             return;
         }
         
-        // Присоединяемся
+        if (!room) {
+            console.error('❌ [JOIN] Комната не существует или игра уже началась');
+            alert('❌ Комната не найдена или игра уже началась!');
+            joinBtn.textContent = originalText;
+            joinBtn.disabled = false;
+            return;
+        }
+        
+        console.log('✅ [JOIN] Комната найдена:', room.id);
+        
+        // Шаг 2: Присоединяемся
+        console.log('🔵 [JOIN] Шаг 2: Присоединение...');
+        
         const { data, error } = await supabaseClient
             .from('game_rooms')
             .update({
@@ -437,35 +463,52 @@ window.joinRoom = async function() {
             .select()
             .single();
         
-        if (error || !data) {
-            console.error('❌ Ошибка присоединения:', error);
-            alert('Не удалось присоединиться!');
+        if (error) {
+            console.error('❌ [JOIN] Ошибка присоединения:', error);
+            alert('❌ Не удалось присоединиться: ' + error.message);
+            joinBtn.textContent = originalText;
+            joinBtn.disabled = false;
             return;
         }
         
+        if (!data) {
+            console.error('❌ [JOIN] Нет данных после обновления');
+            alert('❌ Не удалось присоединиться (кто-то опередил)!');
+            joinBtn.textContent = originalText;
+            joinBtn.disabled = false;
+            return;
+        }
+        
+        // Успех!
         roomId = data.id;
         isMultiplayer = true;
         isPlayer1 = false;
         roomCode = code;
         
-        console.log('✅ Присоединился к комнате:', roomId);
+        console.log('✅ [JOIN] Успешно присоединился! Room ID:', roomId);
+        console.log('🎮 [JOIN] Запуск игры...');
+        
         startGame();
         subscribeToRoom(roomId);
+        
     } catch (e) {
-        console.error('❌ Ошибка:', e);
-        alert('Ошибка: ' + e.message);
+        console.error('❌ [JOIN] Исключение:', e);
+        alert('❌ Ошибка подключения: ' + e.message);
+    } finally {
+        joinBtn.textContent = originalText;
+        joinBtn.disabled = false;
     }
 };
 
 window.startSinglePlayer = function() {
-    console.log('🔵 Одиночная игра');
+    console.log('🔵 [SINGLE] Одиночная игра');
     isMultiplayer = false;
     startGame();
 };
 
 window.copyRoomCode = function() {
     navigator.clipboard.writeText(roomCode);
-    alert('Код скопирован: ' + roomCode);
+    alert('📋 Код скопирован: ' + roomCode);
 };
 
 window.leaveRoom = function() {
@@ -491,42 +534,42 @@ function generateRoomCode() {
 
 function subscribeToRoom(id) {
     if (!supabaseClient) {
-        console.error('❌ Supabase не инициализирован!');
+        console.error('❌ [SUBSCRIBE] Supabase не инициализирован!');
         return;
     }
     
-    console.log('🔵 Подписка на комнату:', id);
+    console.log('🔵 [SUBSCRIBE] Подписка на комнату:', id);
     
     gameChannel = supabaseClient.channel(`room:${id}`)
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
             (payload) => {
-                console.log('🔄 Получено обновление:', payload.new);
+                console.log('🔄 [SUBSCRIBE] Получено обновление:', payload.new);
                 handleGameUpdate(payload.new);
             }
         )
         .subscribe((status) => {
-            console.log('📡 Статус подключения:', status);
+            console.log('📡 [SUBSCRIBE] Статус:', status);
             if (status === 'SUBSCRIBED') {
                 isConnected = true;
-                console.log('✅ Подключено к комнате');
+                console.log('✅ [SUBSCRIBE] Успешно подключено!');
             } else if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Ошибка подключения к каналу');
+                console.error('❌ [SUBSCRIBE] Ошибка канала!');
             }
         });
 }
 
 async function handleGameUpdate(state) {
-    console.log('🔄 Обновление состояния:', state);
+    console.log('🔄 [UPDATE] Состояние:', state);
     
     if (!gameActive && state.status === 'playing' && !isPlayer1) {
-        console.log('🎮 Игра начинается!');
+        console.log('🎮 [UPDATE] Игра начинается (игрок 2)!');
         startGame();
     }
     
     if (state.status === 'finished' && state.winner) {
         const iWin = (isPlayer1 && state.winner === 'player1') || (!isPlayer1 && state.winner === 'player2');
-        console.log('🏆 Игра окончена. Победа:', iWin ? 'ты' : 'враг');
+        console.log('🏆 [UPDATE] Игра окончена. Победа:', iWin ? 'ты' : 'враг');
         endGame(iWin ? 'win' : 'lose');
     }
     
@@ -569,7 +612,7 @@ async function syncGameState() {
 
 // ==================== ОДИНОЧНАЯ ИГРА ====================
 function startGame() {
-    console.log('🎮 Игра началась!');
+    console.log('🎮 [START] Игра началась!');
     
     document.getElementById('multiplayer-menu').classList.add('hidden');
     document.getElementById('waiting-screen').classList.add('hidden');
@@ -733,6 +776,6 @@ document.addEventListener('click', () => {
 
 window.addEventListener('load', () => {
     console.log('🎮 CLASH RAYON MULTIPLAYER загружается...');
+    console.log('📍 URL:', SUPABASE_URL);
     initSupabase();
-    console.log('⚠️ Не забудь заменить SUPABASE_URL и SUPABASE_KEY!');
 });
