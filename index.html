@@ -3,75 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2c3e50">
-    <title>⚔️ CLASH RAYON ⚔️</title>
+    <title>⚔️ CLASH RAYON - Мультиплеер ⚔️</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <h1>⚔️ CLASH RAYON ⚔️</h1>
 
-    <div id="game-area">
-        <div class="river"></div>
-        <div class="bridge"></div>
-        
-        <div class="tower enemy" id="enemy-tower">
-            <div class="tower-hp"><div class="tower-hp-fill" id="enemy-hp"></div></div>
-            ВРАГ
-        </div>
-        <div class="tower player" id="player-tower">
-            <div class="tower-hp"><div class="tower-hp-fill" id="player-hp"></div></div>
-            ТЫ
-        </div>
-    </div>
-
-    <div id="ui">
-        <div class="elixir-container">
-            <div class="elixir-bar">
-                <div class="elixir-fill" id="elixir-fill"></div>
+    <!-- МЕНЮ -->
+    <div id="multiplayer-menu">
+        <div class="menu-card">
+            <h2>🎮 Мультиплеер</h2>
+            
+            <div class="menu-section">
+                <h3>📝 Создать комнату</h3>
+                <button class="btn-primary" onclick="createRoom()">Создать игру</button>
             </div>
-            <div class="elixir-text" id="elixir-text">5/10</div>
-        </div>
-
-        <div class="cards-scroll-wrapper">
-            <div class="cards-container" id="cards-container">
-                <div class="card" data-type="gopnik" data-cost="3">
-                    <div class="card-cost">3</div>
-                    <div class="card-icon">👕</div>
-                    <div class="card-name">Гопник</div>
-                </div>
-                <div class="card" data-type="babka" data-cost="5">
-                    <div class="card-cost">5</div>
-                    <div class="card-icon">👵</div>
-                    <div class="card-name">Бабушка</div>
-                </div>
-                <div class="card" data-type="dvornik" data-cost="4">
-                    <div class="card-cost">4</div>
-                    <div class="card-icon">🧹</div>
-                    <div class="card-name">Дворник</div>
-                </div>
-                <div class="card" data-type="podezdniy" data-cost="6">
-                    <div class="card-cost">6</div>
-                    <div class="card-icon">🚪</div>
-                    <div class="card-name">Подъездный</div>
-                </div>
-                <div class="card" data-type="sigareta" data-cost="2">
-                    <div class="card-cost">2</div>
-                    <div class="card-icon">🚬</div>
-                    <div class="card-name">Сигарета</div>
-                </div>
+            
+            <div class="menu-section">
+                <h3>🔗 Присоединиться</h3>
+                <input type="text" id="room-code-input" placeholder="Введи код (6 букв)" maxlength="6" autocomplete="off">
+                <button class="btn-primary" onclick="joinRoom()">Войти</button>
+            </div>
+            
+            <div class="menu-section">
+                <button class="btn-secondary" onclick="startSinglePlayer()">👤 Одиночная игра</button>
             </div>
         </div>
     </div>
 
+    <!-- ОЖИДАНИЕ -->
+    <div id="waiting-screen" class="hidden">
+        <div class="waiting-card">
+            <h2>⏳ Ожидание игрока...</h2>
+            <p>Код комнаты:</p>
+            <div class="room-code-display" id="my-room-code">------</div>
+            <p>Отправь этот код другу!</p>
+            <button class="btn-secondary" onclick="copyRoomCode()">📋 Копировать</button>
+            <button class="btn-danger" onclick="leaveRoom()">❌ Отмена</button>
+        </div>
+    </div>
+
+    <!-- ИГРА -->
+    <div id="game-container" class="hidden">
+        <div id="game-info">
+            <div class="player-info">
+                <span id="player1-name">Игрок 1</span>
+                <div class="hp-bar-small"><div id="player1-tower-hp" class="hp-fill"></div></div>
+            </div>
+            <div class="vs-badge">VS</div>
+            <div class="player-info">
+                <span id="player2-name">Игрок 2</span>
+                <div class="hp-bar-small"><div id="player2-tower-hp" class="hp-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="game-area">
+            <div class="river"></div>
+            <div class="bridge"></div>
+            
+            <div class="tower enemy" id="enemy-tower">
+                <div class="tower-hp"><div class="tower-hp-fill" id="enemy-hp"></div></div>
+                ВРАГ
+            </div>
+            <div class="tower player" id="player-tower">
+                <div class="tower-hp"><div class="tower-hp-fill" id="player-hp"></div></div>
+                ТЫ
+            </div>
+        </div>
+
+        <div id="ui">
+            <div class="elixir-container">
+                <div class="elixir-bar">
+                    <div class="elixir-fill" id="elixir-fill"></div>
+                </div>
+                <div class="elixir-text" id="elixir-text">5/10</div>
+            </div>
+
+            <div class="cards-scroll-wrapper">
+                <div class="cards-container" id="cards-container">
+                    <div class="card" data-type="gopnik" data-cost="3">
+                        <div class="card-cost">3</div>
+                        <div class="card-icon">👕</div>
+                        <div class="card-name">Гопник</div>
+                    </div>
+                    <div class="card" data-type="babka" data-cost="5">
+                        <div class="card-cost">5</div>
+                        <div class="card-icon">👵</div>
+                        <div class="card-name">Бабушка</div>
+                    </div>
+                    <div class="card" data-type="dvornik" data-cost="4">
+                        <div class="card-cost">4</div>
+                        <div class="card-icon">🧹</div>
+                        <div class="card-name">Дворник</div>
+                    </div>
+                    <div class="card" data-type="podezdniy" data-cost="6">
+                        <div class="card-cost">6</div>
+                        <div class="card-icon">🚪</div>
+                        <div class="card-name">Подъездный</div>
+                    </div>
+                    <div class="card" data-type="sigareta" data-cost="2">
+                        <div class="card-cost">2</div>
+                        <div class="card-icon">🚬</div>
+                        <div class="card-name">Сигарета</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- КОНЕЦ ИГРЫ -->
     <div id="game-over" class="hidden">
         <div class="game-over-content">
             <h2 id="game-over-title"></h2>
-            <button onclick="location.reload()">Играть снова</button>
+            <p id="game-over-message"></p>
+            <button class="btn-primary" onclick="location.reload()">🔄 В меню</button>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="multiplayer.js"></script>
 </body>
 </html>
