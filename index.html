@@ -2,7 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
     <title>⚔️ CLASH RAYON ⚔️</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -31,32 +34,28 @@
             <div class="elixir-text" id="elixir-text">5/10</div>
         </div>
 
-        <div class="cards-container">
-            <div class="card" id="card-gopnik" onclick="spawnUnit('gopnik')">
+        <div class="cards-container" id="cards-container">
+            <div class="card" data-type="gopnik" data-cost="3">
                 <div class="card-cost">3</div>
                 <div class="card-icon">👕</div>
                 <div class="card-name">Гопник</div>
             </div>
-            
-            <div class="card" id="card-babka" onclick="spawnUnit('babka')">
+            <div class="card" data-type="babka" data-cost="5">
                 <div class="card-cost">5</div>
                 <div class="card-icon">👵</div>
                 <div class="card-name">Бабушка</div>
             </div>
-            
-            <div class="card" id="card-dvornik" onclick="spawnUnit('dvornik')">
+            <div class="card" data-type="dvornik" data-cost="4">
                 <div class="card-cost">4</div>
                 <div class="card-icon">🧹</div>
                 <div class="card-name">Дворник</div>
             </div>
-            
-            <div class="card" id="card-podezdniy" onclick="spawnUnit('podezdniy')">
+            <div class="card" data-type="podezdniy" data-cost="6">
                 <div class="card-cost">6</div>
                 <div class="card-icon">🚪</div>
                 <div class="card-name">Подъездный</div>
             </div>
-            
-            <div class="card" id="card-sigareta" onclick="spawnUnit('sigareta')">
+            <div class="card" data-type="sigareta" data-cost="2">
                 <div class="card-cost">2</div>
                 <div class="card-icon">🚬</div>
                 <div class="card-name">Сигарета</div>
