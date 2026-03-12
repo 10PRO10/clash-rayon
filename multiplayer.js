@@ -1,9 +1,3 @@
-// ==================== SUPABASE CONFIG ====================
-// ⚠️ ЗАМЕНИ НА СВОИ ДАННЫЕ ИЗ SUPABASE!
-const SUPABASE_URL = 'https://fvusxxmnqwjmapyibdna.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2dXN4eG1ucXdqbWFweWliZG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMjA3NzUsImV4cCI6MjA4ODg5Njc3NX0.8XLqBvkJLSADyxiYNCx110zCal3djtR5JVyzLdrsXsM';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 let roomId = null;
 let roomCode = null;
@@ -24,6 +18,25 @@ let playerTowerHP = 1000;
 const maxTowerHP = 1000;
 let lastSyncTime = 0;
 let gameStartTime = 0;
+
+// ==================== SUPABASE CLIENT ====================
+// ⚠️ ЗАМЕНИ НА СВОИ ДАННЫЕ!
+const SUPABASE_URL = 'https://fvusxxmnqwjmapyibdna.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2dXN4eG1ucXdqbWFweWliZG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMjA3NzUsImV4cCI6MjA4ODg5Njc3NX0.8XLqBvkJLSADyxiYNCx110zCal3djtR5JVyzLdrsXsM';
+
+// Создаём клиент после загрузки страницы
+let supabaseClient = null;
+
+function initSupabase() {
+    if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('✅ Supabase подключён');
+        return true;
+    } else {
+        console.error('❌ Supabase библиотека не загружена!');
+        return false;
+    }
+}
 
 // ==================== АУДИО ====================
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -107,11 +120,7 @@ const unitsConfig = {
 };
 
 // ==================== DOM ====================
-const gameArea = document.getElementById('game-area');
-const elixirFill = document.getElementById('elixir-fill');
-const elixirText = document.getElementById('elixir-text');
-const enemyTower = document.getElementById('enemy-tower');
-const playerTower = document.getElementById('player-tower');
+let gameArea, elixirFill, elixirText, enemyTower, playerTower;
 
 // ==================== UNIT CLASS ====================
 class Unit {
@@ -196,12 +205,12 @@ class Unit {
         const isEnemy = tower === enemyTower;
         if (isEnemy) {
             enemyTowerHP -= this.damage;
-            updateTowerHP(enemyHPBar, enemyTowerHP);
+            updateTowerHP(document.getElementById('enemy-hp'), enemyTowerHP);
             createExplosion(tower.offsetLeft+35, tower.offsetTop+45, '#e74c3c', 5);
             if (enemyTowerHP <= 0) endGame('win');
         } else {
             playerTowerHP -= this.damage;
-            updateTowerHP(playerHPBar, playerTowerHP);
+            updateTowerHP(document.getElementById('player-hp'), playerTowerHP);
             if (playerTowerHP <= 0) endGame('lose');
         }
         this.showDamage(this.damage);
@@ -256,7 +265,7 @@ class Unit {
     }
 }
 
-// ==================== ФУНКЦИИ ====================
+// ==================== ИГРОВЫЕ ФУНКЦИИ ====================
 function updateUI() {
     elixirFill.style.width = (elixir / maxElixir * 100) + '%';
     elixirText.textContent = Math.floor(elixir) + '/' + maxElixir;
@@ -267,7 +276,7 @@ function updateUI() {
 }
 
 function updateTowerHP(bar, hp) {
-    bar.style.width = Math.max(0, (hp / maxTowerHP) * 100) + '%';
+    if (bar) bar.style.width = Math.max(0, (hp / maxTowerHP) * 100) + '%';
 }
 
 function spawnUnit(type) {
@@ -304,11 +313,6 @@ function updateParticles() { particles = particles.filter(p => p.update()); }
 function gameLoop() {
     if (!gameActive) return;
     
-    if (!isMultiplayer) {
-        enemyTowerHP = Math.max(0, enemyTowerHP - 0.05);
-        updateTowerHP(document.getElementById('enemy-hp'), enemyTowerHP);
-    }
-    
     playerUnits.forEach(u => u.update());
     enemyUnits.forEach(u => u.update());
     updateParticles();
@@ -341,25 +345,63 @@ function endGame(result) {
         playSound('lose');
     }
     
-    if (isMultiplayer && roomId) {
-        supabase.from('game_rooms').update({
+    if (isMultiplayer && roomId && supabaseClient) {
+        supabaseClient.from('game_rooms').update({
             status: 'finished',
             winner: result === 'win' ? (isPlayer1 ? 'player1' : 'player2') : (isPlayer1 ? 'player2' : 'player1')
         }).eq('id', roomId);
     }
 }
 
-// ==================== МУЛЬТИПЛЕЕР ====================
-function createRoom() {
+// ==================== МУЛЬТИПЛЕЕР - ГЛОБАЛЬНЫЕ ФУНКЦИИ ====================
+
+// Делаем функции глобальными через window
+window.createRoom = function() {
+    if (!supabaseClient && !initSupabase()) {
+        alert('Ошибка подключения к серверу!');
+        return;
+    }
     isMultiplayer = true;
     isPlayer1 = true;
     roomCode = generateRoomCode();
     createGameRoom(roomCode);
-}
+};
 
+window.joinRoom = function() {
+    if (!supabaseClient && !initSupabase()) {
+        alert('Ошибка подключения к серверу!');
+        return;
+    }
+    const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+    if (code.length !== 6) { alert('Введи 6-значный код!'); return; }
+    
+    isMultiplayer = true;
+    isPlayer1 = false;
+    roomCode = code;
+    joinGameRoom(code);
+};
+
+window.startSinglePlayer = function() {
+    isMultiplayer = false;
+    startGame();
+};
+
+window.copyRoomCode = function() {
+    navigator.clipboard.writeText(roomCode);
+    alert('Код скопирован: ' + roomCode);
+};
+
+window.leaveRoom = function() {
+    if (roomId && supabaseClient) {
+        supabaseClient.from('game_rooms').delete().eq('id', roomId);
+    }
+    location.reload();
+};
+
+// ==================== МУЛЬТИПЛЕЕР ЛОГИКА ====================
 async function createGameRoom(code) {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('game_rooms')
             .insert([{
                 room_code: code,
@@ -382,19 +424,9 @@ async function createGameRoom(code) {
     }
 }
 
-function joinRoom() {
-    const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-    if (code.length !== 6) { alert('Введи 6-значный код!'); return; }
-    
-    isMultiplayer = true;
-    isPlayer1 = false;
-    roomCode = code;
-    joinGameRoom(code);
-}
-
 async function joinGameRoom(code) {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('game_rooms')
             .update({
                 player2_id: 'p2_' + Date.now(),
@@ -423,18 +455,6 @@ function showWaitingScreen(code) {
     document.getElementById('my-room-code').textContent = code;
 }
 
-function copyRoomCode() {
-    navigator.clipboard.writeText(roomCode);
-    alert('Код скопирован: ' + roomCode);
-}
-
-function leaveRoom() {
-    if (roomId) {
-        supabase.from('game_rooms').delete().eq('id', roomId);
-    }
-    location.reload();
-}
-
 function generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -443,7 +463,9 @@ function generateRoomCode() {
 }
 
 function subscribeToRoom(id) {
-    gameChannel = supabase.channel(`room:${id}`)
+    if (!supabaseClient) return;
+    
+    gameChannel = supabaseClient.channel(`room:${id}`)
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
             (payload) => handleGameUpdate(payload.new)
@@ -466,7 +488,6 @@ async function handleGameUpdate(state) {
         endGame(iWin ? 'win' : 'lose');
     }
     
-    // Синхронизация HP
     if (state.game_state) {
         const gs = state.game_state;
         if (isPlayer1) {
@@ -484,7 +505,7 @@ async function handleGameUpdate(state) {
 }
 
 async function syncGameState() {
-    if (!roomId || !gameActive || !isConnected) return;
+    if (!roomId || !gameActive || !isConnected || !supabaseClient) return;
     
     const now = Date.now();
     if (now - lastSyncTime < 300) return;
@@ -498,18 +519,13 @@ async function syncGameState() {
         last_update: now
     };
     
-    await supabase.from('game_rooms').update({
+    await supabaseClient.from('game_rooms').update({
         game_state: gs,
         updated_at: new Date().toISOString()
     }).eq('id', roomId);
 }
 
 // ==================== ОДИНОЧНАЯ ИГРА ====================
-function startSinglePlayer() {
-    isMultiplayer = false;
-    startGame();
-}
-
 function startGame() {
     document.getElementById('multiplayer-menu').classList.add('hidden');
     document.getElementById('waiting-screen').classList.add('hidden');
@@ -522,6 +538,14 @@ function startGame() {
     
     gameActive = true;
     gameStartTime = Date.now();
+    
+    // Инициализация DOM элементов
+    gameArea = document.getElementById('game-area');
+    elixirFill = document.getElementById('elixir-fill');
+    elixirText = document.getElementById('elixir-text');
+    enemyTower = document.getElementById('enemy-tower');
+    playerTower = document.getElementById('player-tower');
+    
     initMobileControls();
     updateUI();
     gameLoop();
@@ -543,6 +567,8 @@ let draggedCard = null, dropZone = null;
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 function initMobileControls() {
+    if (!gameArea) return;
+    
     dropZone = document.createElement('div');
     dropZone.className = 'drop-zone';
     gameArea.appendChild(dropZone);
@@ -663,6 +689,16 @@ document.addEventListener('click', () => {
 }, { once: true });
 
 window.addEventListener('load', () => {
+    // Инициализация Supabase
+    initSupabase();
+    
+    // Инициализация DOM
+    gameArea = document.getElementById('game-area');
+    elixirFill = document.getElementById('elixir-fill');
+    elixirText = document.getElementById('elixir-text');
+    enemyTower = document.getElementById('enemy-tower');
+    playerTower = document.getElementById('player-tower');
+    
     console.log('🎮 CLASH RAYON MULTIPLAYER готов!');
-    console.log('⚠️ Не забудь настроить Supabase URL и ключ!');
+    console.log('⚠️ Замени SUPABASE_URL и SUPABASE_KEY в multiplayer.js!');
 });
