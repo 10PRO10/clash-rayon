@@ -15,18 +15,15 @@
     <div id="multiplayer-menu">
         <div class="menu-card">
             <h2>🎮 Мультиплеер</h2>
-            
             <div class="menu-section">
                 <h3>📝 Создать комнату</h3>
                 <button class="btn-primary" onclick="createRoom()">Создать игру</button>
             </div>
-            
             <div class="menu-section">
                 <h3>🔗 Присоединиться</h3>
                 <input type="text" id="room-code-input" placeholder="Введи код (6 букв)" maxlength="6" autocomplete="off">
                 <button class="btn-primary" onclick="joinRoom()">Войти</button>
             </div>
-            
             <div class="menu-section">
                 <button class="btn-secondary" onclick="startSinglePlayer()">👤 Одиночная игра</button>
             </div>
@@ -62,7 +59,6 @@
         <div id="game-area">
             <div class="river"></div>
             <div class="bridge"></div>
-            
             <div class="tower enemy" id="enemy-tower">
                 <div class="tower-hp"><div class="tower-hp-fill" id="enemy-hp"></div></div>
                 ВРАГ
@@ -80,33 +76,22 @@
                 </div>
                 <div class="elixir-text" id="elixir-text">5/10</div>
             </div>
-
             <div class="cards-scroll-wrapper">
                 <div class="cards-container" id="cards-container">
                     <div class="card" data-type="gopnik" data-cost="3">
-                        <div class="card-cost">3</div>
-                        <div class="card-icon">👕</div>
-                        <div class="card-name">Гопник</div>
+                        <div class="card-cost">3</div><div class="card-icon">👕</div><div class="card-name">Гопник</div>
                     </div>
                     <div class="card" data-type="babka" data-cost="5">
-                        <div class="card-cost">5</div>
-                        <div class="card-icon">👵</div>
-                        <div class="card-name">Бабушка</div>
+                        <div class="card-cost">5</div><div class="card-icon">👵</div><div class="card-name">Бабушка</div>
                     </div>
                     <div class="card" data-type="dvornik" data-cost="4">
-                        <div class="card-cost">4</div>
-                        <div class="card-icon">🧹</div>
-                        <div class="card-name">Дворник</div>
+                        <div class="card-cost">4</div><div class="card-icon">🧹</div><div class="card-name">Дворник</div>
                     </div>
                     <div class="card" data-type="podezdniy" data-cost="6">
-                        <div class="card-cost">6</div>
-                        <div class="card-icon">🚪</div>
-                        <div class="card-name">Подъездный</div>
+                        <div class="card-cost">6</div><div class="card-icon">🚪</div><div class="card-name">Подъездный</div>
                     </div>
                     <div class="card" data-type="sigareta" data-cost="2">
-                        <div class="card-cost">2</div>
-                        <div class="card-icon">🚬</div>
-                        <div class="card-name">Сигарета</div>
+                        <div class="card-cost">2</div><div class="card-icon">🚬</div><div class="card-name">Сигарета</div>
                     </div>
                 </div>
             </div>
@@ -121,6 +106,8 @@
             <button class="btn-primary" onclick="location.reload()">🔄 В меню</button>
         </div>
     </div>
+
+    <div id="connection-status" class="hidden">🔄 Синхронизация...</div>
 
     <script src="multiplayer.js"></script>
 </body>
