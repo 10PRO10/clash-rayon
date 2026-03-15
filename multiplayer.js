@@ -1,6 +1,6 @@
 // ==================== КОНФИГУРАЦИЯ ====================
 const SUPABASE_URL = 'https://fvusxxmnqwjmapyibdna.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2dXN4eG1ucXdqbWFweWliZG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMjA3NzUsImV4cCI6MjA4ODg5Njc3NX0.8XLqBvkJLSADyxiYNCx110zCal3djtR5JVyzLdrsXsM';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2dXN4eG1ucXdqbWFweWliZG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMjA3NzUsImV4cCI6MjA4ODg5Njc3NX0.8XLqBvkJLSADyxiYNCx110zCal3djtR5JVyzLdrsXsM'; // ⚠️ ВСТАВЬ СВОЙ КЛЮЧ!
 
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 let supabaseClient = null;
@@ -142,34 +142,301 @@ async function handleGameUpdate(newState) { console.log('🔄 [UPDATE] Стат�
 
 function syncUnits(gs) { const remoteUnits = isPlayer1 ? gs.p2_units : gs.p1_units; const localUnits = isPlayer1 ? enemyUnits : playerUnits; if (!remoteUnits||!Array.isArray(remoteUnits)) return; if (!gameArea) return; const existingMap = new Map(localUnits.map(u=>[u.syncId,u])); const receivedIds = new Set(); for (const remote of remoteUnits) { receivedIds.add(remote.id); let unit = existingMap.get(remote.id); if (unit) { if (unit.hp!==remote.hp) { unit.hp=remote.hp; unit.updateHpBar(); } if (unit.x!==remote.x||unit.y!==remote.y) { unit.x=remote.x; unit.y=remote.y; unit.updatePosition(); } unit.state=remote.state; unit.lastAttackTime=remote.lastAttack||0; } else { const newUnit = Unit.fromJSON(remote,!isPlayer1); if (newUnit) { localUnits.push(newUnit); } } } for (const [id,unit] of existingMap) { if (!receivedIds.has(id)) unit.die(); } }
 
-// ==================== МУЛЬТИПЛЕЕР ФУНКЦИИ ====================
-window.createRoom = async function() { console.log('🔵 [CREATE] Создание комнаты...'); if (!supabaseClient && !initSupabase()) { alert('❌ Ошибка подключения!'); return; } isMultiplayer = true; isPlayer1 = true; roomCode = generateRoomCode(); try { const { data, error } = await supabaseClient.from('game_rooms').insert([{ room_code: roomCode, player1_id: 'p1_'+Date.now(), player1_ready: true, status: 'waiting', game_state: { p1_elixir:5, p2_elixir:5, p1_tower_hp:1000, p2_tower_hp:1000, p1_units:[], p2_units:[], last_sync:0 } }]).select().single(); if (error) throw error; roomId = data.id; console.log('✅ [CREATE] Комната создана:', roomId); showWaitingScreen(roomCode); subscribeToRoom(roomId); } catch (e) { console.error('❌ [CREATE]:', e); alert('Ошибка: '+e.message); } };
+// ==================== 🔥 МУЛЬТИПЛЕЕР ФУНКЦИИ (ИСПРАВЛЕНО) ====================
+window.createRoom = async function() {
+    console.log('🔵 [CREATE] Начало создания комнаты...');
+    
+    if (!supabaseClient && !initSupabase()) { 
+        console.error('❌ [CREATE] Supabase не инициализирован');
+        alert('❌ Ошибка подключения к серверу!'); 
+        return; 
+    }
+    
+    try {
+        isMultiplayer = true; 
+        isPlayer1 = true; 
+        roomCode = generateRoomCode();
+        
+        console.log('🔵 [CREATE] Код комнаты:', roomCode);
+        
+        const roomData = {
+            room_code: roomCode,
+            player1_id: 'p1_' + Date.now(),
+            player1_ready: true,
+            status: 'waiting',
+            game_state: {
+                p1_elixir: 5, p2_elixir: 5,
+                p1_tower_hp: 1000, p2_tower_hp: 1000,
+                p1_units: [], p2_units: [],
+                last_sync: 0
+            }
+        };
+        
+        console.log('🔵 [CREATE] Отправка в Supabase...');
+        
+        const { data, error } = await supabaseClient
+            .from('game_rooms')
+            .insert([roomData])
+            .select()
+            .single();
+        
+        if (error) {
+            console.error('❌ [CREATE] Ошибка:', error);
+            alert('❌ Ошибка создания: ' + error.message);
+            return;
+        }
+        
+        if (!data) {
+            console.error('❌ [CREATE] Нет данных в ответе');
+            alert('❌ Не удалось создать комнату');
+            return;
+        }
+        
+        roomId = data.id;
+        console.log('✅ [CREATE] Комната создана! ID:', roomId);
+        console.log('✅ [CREATE] Код:', roomCode);
+        
+        showWaitingScreen(roomCode);
+        subscribeToRoom(roomId);
+        
+    } catch (e) {
+        console.error('❌ [CREATE] Исключение:', e);
+        alert('❌ Ошибка: ' + e.message);
+    }
+};
 
-window.joinRoom = async function() { console.log('🔵 [JOIN] Присоединение...'); if (!supabaseClient && !initSupabase()) { alert('❌ Ошибка подключения!'); return; } const code = document.getElementById('room-code-input').value.trim().toUpperCase(); if (code.length !== 6) { alert('Введи 6-значный код!'); return; } const btn = event.target; const origText = btn.textContent; btn.textContent = '🔍...'; btn.disabled = true; try { for (let attempt = 1; attempt <= 3; attempt++) { const { data: room, error } = await supabaseClient.from('game_rooms').select('*').eq('room_code', code).eq('status', 'waiting').single(); if (room) { const { data, error: joinError } = await supabaseClient.from('game_rooms').update({ player2_id: 'p2_'+Date.now(), player2_ready: true, status: 'playing' }).eq('room_code', code).eq('status', 'waiting').select().single(); if (joinError) throw joinError; if (!data) { alert('❌ Кто-то опередил!'); btn.textContent=origText; btn.disabled=false; return; } roomId = data.id; isMultiplayer = true; isPlayer1 = false; roomCode = code; console.log('✅ [JOIN] Успешно!'); startGame(); subscribeToRoom(roomId); return; } if (attempt < 3) await new Promise(r => setTimeout(r, 500)); } alert('❌ Комната не найдена!'); } catch (e) { console.error('❌ [JOIN]:', e); alert('Ошибка: '+e.message); } finally { btn.textContent = origText; btn.disabled = false; } };
+window.joinRoom = async function() {
+    console.log('🔵 [JOIN] Начало присоединения...');
+    
+    if (!supabaseClient && !initSupabase()) { 
+        alert('❌ Ошибка подключения!'); 
+        return; 
+    }
+    
+    const codeInput = document.getElementById('room-code-input');
+    if (!codeInput) {
+        console.error('❌ [JOIN] Поле ввода не найдено!');
+        alert('❌ Ошибка интерфейса');
+        return;
+    }
+    
+    const code = codeInput.value.trim().toUpperCase();
+    console.log('🔵 [JOIN] Введённый код:', code);
+    
+    if (code.length !== 6) { 
+        alert('⚠️ Введи 6-значный код!'); 
+        return; 
+    }
+    
+    const btn = event?.target || document.getElementById('btn-join');
+    const origText = btn?.textContent || 'Войти';
+    if (btn) { btn.textContent = '🔍...'; btn.disabled = true; }
+    
+    try {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            console.log(`🔵 [JOIN] Попытка ${attempt}/3...`);
+            
+            const {  room, error } = await supabaseClient
+                .from('game_rooms')
+                .select('*')
+                .eq('room_code', code)
+                .eq('status', 'waiting')
+                .single();
+            
+            if (room) {
+                const { data, error: joinError } = await supabaseClient
+                    .from('game_rooms')
+                    .update({
+                        player2_id: 'p2_' + Date.now(),
+                        player2_ready: true,
+                        status: 'playing'
+                    })
+                    .eq('room_code', code)
+                    .eq('status', 'waiting')
+                    .select()
+                    .single();
+                
+                if (joinError) throw joinError;
+                if (!data) { 
+                    alert('❌ Кто-то опередил!'); 
+                    if (btn) { btn.textContent = origText; btn.disabled = false; }
+                    return; 
+                }
+                
+                roomId = data.id;
+                isMultiplayer = true;
+                isPlayer1 = false;
+                
+                console.log('✅ [JOIN] Успешно! Room ID:', roomId);
+                console.log('🎮 [JOIN] Запуск игры...');
+                
+                startGame();
+                subscribeToRoom(roomId);
+                return;
+            }
+            
+            if (attempt < 3) await new Promise(r => setTimeout(r, 500));
+        }
+        
+        alert('❌ Комната не найдена!');
+        
+    } catch (e) { 
+        console.error('❌ [JOIN]:', e); 
+        alert('Ошибка: ' + e.message); 
+    } finally { 
+        if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+};
 
 window.startSinglePlayer = function() { isMultiplayer=false; startGame(); };
 window.copyRoomCode = function() { navigator.clipboard.writeText(roomCode); alert('📋 Код: '+roomCode); };
 window.leaveRoom = function() { if (roomId&&supabaseClient) supabaseClient.from('game_rooms').delete().eq('id',roomId); location.reload(); };
 
-function showWaitingScreen(code) { document.getElementById('multiplayer-menu').classList.add('hidden'); document.getElementById('waiting-screen').classList.remove('hidden'); document.getElementById('my-room-code').textContent=code; }
-function generateRoomCode() { const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let code=''; for (let i=0;i<6;i++) code+=chars[Math.floor(Math.random()*chars.length)]; return code; }
+function showWaitingScreen(code) { 
+    const menu = document.getElementById('multiplayer-menu');
+    const wait = document.getElementById('waiting-screen');
+    const codeEl = document.getElementById('my-room-code');
+    if (menu) menu.classList.add('hidden');
+    if (wait) wait.classList.remove('hidden');
+    if (codeEl) codeEl.textContent = code;
+}
 
-function subscribeToRoom(id) { if (!supabaseClient) return; console.log('🔵 [SUBSCRIBE] Подписка на:', id); gameChannel = supabaseClient.channel(`room:${id}`).on('postgres_changes',{event:'UPDATE',schema:'public',table:'game_rooms',filter:`id=eq.${id}`},(payload)=>handleGameUpdate(payload.new)).subscribe(status => { console.log('📡 [SUBSCRIBE] Статус:', status); if (status==='SUBSCRIBED') { isConnected=true; if(connectionStatus){connectionStatus.classList.add('connected');connectionStatus.classList.remove('hidden');} } }); }
+function generateRoomCode() {
+    const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let code='';
+    for (let i=0;i<6;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+    return code;
+}
+
+function subscribeToRoom(id) { 
+    if (!supabaseClient) { console.error('❌ [SUBSCRIBE] Supabase не инициализирован!'); return; }
+    console.log('🔵 [SUBSCRIBE] Подписка на:', id);
+    gameChannel = supabaseClient.channel(`room:${id}`)
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'game_rooms',filter:`id=eq.${id}`},(payload)=>handleGameUpdate(payload.new))
+        .subscribe(status => { 
+            console.log('📡 [SUBSCRIBE] Статус:', status); 
+            if (status==='SUBSCRIBED') { 
+                isConnected=true; 
+                if(connectionStatus){connectionStatus.classList.add('connected');connectionStatus.classList.remove('hidden');} 
+            } 
+        }); 
+}
 
 // ==================== ЗАПУСК ИГРЫ ====================
-function startGame() { console.log('🎮 [START] Запуск игры...'); gameArea=document.getElementById('game-area'); elixirFill=document.getElementById('elixir-fill'); elixirText=document.getElementById('elixir-text'); enemyTower=document.getElementById('enemy-tower'); playerTower=document.getElementById('player-tower'); connectionStatus=document.getElementById('connection-status'); if (!gameArea) { console.error('❌ gameArea не найден!'); return; } document.getElementById('multiplayer-menu')?.classList.add('hidden'); document.getElementById('waiting-screen')?.classList.add('hidden'); document.getElementById('game-container')?.classList.remove('hidden'); if (isMultiplayer) { const p1=document.getElementById('player1-name'), p2=document.getElementById('player2-name'); if (p1) p1.textContent=isPlayer1?'ТЫ':'ВРАГ'; if (p2) p2.textContent=isPlayer1?'ВРАГ':'ТЫ'; } gameActive=true; initMobileControls(); updateUI(); gameLoop(); if (!isMultiplayer) setInterval(spawnEnemyUnit,7000); setInterval(() => { if (elixir<maxElixir&&gameActive) { elixir=Math.min(maxElixir,elixir+elixirRate); updateUI(); } }, 1000); if (isMultiplayer) setInterval(() => { if (gameActive) syncGameState(); }, syncInterval); console.log('✅ [START] Игра готова!'); }
+function startGame() { 
+    console.log('🎮 [START] Запуск игры...');
+    
+    gameArea=document.getElementById('game-area');
+    elixirFill=document.getElementById('elixir-fill');
+    elixirText=document.getElementById('elixir-text');
+    enemyTower=document.getElementById('enemy-tower');
+    playerTower=document.getElementById('player-tower');
+    connectionStatus=document.getElementById('connection-status');
+    
+    if (!gameArea) { console.error('❌ gameArea не найден!'); return; }
+    
+    const menu=document.getElementById('multiplayer-menu');
+    const wait=document.getElementById('waiting-screen');
+    const container=document.getElementById('game-container');
+    if (menu) menu.classList.add('hidden');
+    if (wait) wait.classList.add('hidden');
+    if (container) container.classList.remove('hidden');
+    
+    if (isMultiplayer) {
+        const p1=document.getElementById('player1-name'), p2=document.getElementById('player2-name');
+        if (p1) p1.textContent=isPlayer1?'ТЫ':'ВРАГ';
+        if (p2) p2.textContent=isPlayer1?'ВРАГ':'ТЫ';
+    }
+    
+    gameActive=true;
+    initMobileControls();
+    updateUI();
+    gameLoop();
+    
+    if (!isMultiplayer) setInterval(spawnEnemyUnit,7000);
+    setInterval(() => { if (elixir<maxElixir&&gameActive) { elixir=Math.min(maxElixir,elixir+elixirRate); updateUI(); } }, 1000);
+    if (isMultiplayer) setInterval(() => { if (gameActive) syncGameState(); }, syncInterval);
+    
+    console.log('✅ [START] Игра готова!');
+}
 
 function spawnEnemyUnit() { if (!gameActive) return; const avail=['gopnik','dvornik']; if (Math.random()<0.3) return; enemyUnits.push(new Unit(avail[Math.floor(Math.random()*avail.length)],false)); }
 function updateParticles() { particles=particles.filter(p=>p.update()); }
 function gameLoop() { if (!gameActive) return; playerUnits.forEach(u=>u.update()); enemyUnits.forEach(u=>u.update()); updateParticles(); requestAnimationFrame(gameLoop); }
 
-function endGame(result) { gameActive=false; const screen=document.getElementById('game-over'),title=document.getElementById('game-over-title'),msg=document.getElementById('game-over-message'); screen.classList.remove('hidden'); title.textContent=result==='win'?'🎉 ПОБЕДА!':'💀 ПОРАЖЕНИЕ!'; title.style.color=result==='win'?'#2ecc71':'#e74c3c'; msg.textContent=isMultiplayer?(result==='win'?'Ты разгромил противника!':'В следующий раз повезёт!'):(result==='win'?'Ты захватил подъезд!':'Тебя выгнали!'); playSound(result); if (result==='win') createExplosion(200,300,'#f1c40f',50); if (isMultiplayer&&roomId&&supabaseClient) { supabaseClient.from('game_rooms').update({status:'finished',winner:result==='win'?(isPlayer1?'player1':'player2'):(isPlayer1?'player2':'player1')}).eq('id',roomId); } }
+function endGame(result) { 
+    gameActive=false;
+    const screen=document.getElementById('game-over'),title=document.getElementById('game-over-title'),msg=document.getElementById('game-over-message');
+    if (screen) screen.classList.remove('hidden');
+    if (title) { title.textContent=result==='win'?'🎉 ПОБЕДА!':'💀 ПОРАЖЕНИЕ!'; title.style.color=result==='win'?'#2ecc71':'#e74c3c'; }
+    if (msg) msg.textContent=isMultiplayer?(result==='win'?'Ты разгромил противника!':'В следующий раз повезёт!'):(result==='win'?'Ты захватил подъезд!':'Тебя выгнали!');
+    playSound(result);
+    if (result==='win') createExplosion(200,300,'#f1c40f',50);
+    if (isMultiplayer&&roomId&&supabaseClient) {
+        supabaseClient.from('game_rooms').update({status:'finished',winner:result==='win'?(isPlayer1?'player1':'player2'):(isPlayer1?'player2':'player1')}).eq('id',roomId);
+    }
+}
 
 // ==================== МОБИЛЬНЫЕ УПРАВЛЕНИЯ ====================
-let draggedCard=null,dropZone=null; const isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-function initMobileControls() { if (!gameArea) return; dropZone=document.createElement('div'); dropZone.className='drop-zone'; gameArea.appendChild(dropZone); if (isMobile) { const hint=document.createElement('div'); hint.className='swipe-hint'; hint.textContent='👆 Тяни карту'; gameArea.appendChild(hint); setTimeout(()=>hint.remove(),6000); } document.querySelectorAll('.card').forEach(card => { const type=card.dataset.type,cost=parseInt(card.dataset.cost); const startDrag=(e) => { if (card.classList.contains('disabled')||elixir<cost) return; e.preventDefault(); draggedCard={type,cost,original:card,clone:card.cloneNode(true)}; draggedCard.clone.classList.add('dragging'); document.body.appendChild(draggedCard.clone); card.style.opacity='0.3'; card.classList.add('touched'); updateDrag(e); }; card.addEventListener('mousedown',startDrag); card.addEventListener('touchstart',startDrag,{passive:false}); }); const updateDrag=(e) => { if (!draggedCard) return; const cx=e.clientX||(e.touches?.[0]?.clientX),cy=e.clientY||(e.touches?.[0]?.clientY); if (!cx||!cy) return; draggedCard.clone.style.left=(cx-45)+'px'; draggedCard.clone.style.top=(cy-57)+'px'; const rect=gameArea.getBoundingClientRect(),x=cx-rect.left,y=cy-rect.top; if (x>=0&&x<=rect.width&&y>=0&&y<=rect.height) { dropZone.classList.add('active'); dropZone.style.left=(x-30)+'px'; dropZone.style.top=(y-30)+'px'; } else dropZone.classList.remove('active'); }; const endDrag=(e) => { if (!draggedCard) return; const cx=e.clientX||(e.changedTouches?.[0]?.clientX),cy=e.clientY||(e.changedTouches?.[0]?.clientY); if (cx&&cy) { const rect=gameArea.getBoundingClientRect(),x=cx-rect.left,y=cy-rect.top; if (x>=0&&x<=rect.width&&y>=0&&y<=rect.height) { const gx=Math.max(145,Math.min(255,x-20)),gy=Math.max(60,Math.min(540,y-20)); spawnUnitAt(draggedCard.type,gx,gy); createExplosion(gx+20,gy+20,'#f1c40f',15); } } if (draggedCard.clone.parentNode) draggedCard.clone.parentNode.removeChild(draggedCard.clone); draggedCard.original.style.opacity=''; draggedCard.original.classList.remove('touched'); dropZone.classList.remove('active'); draggedCard=null; }; document.addEventListener('mousemove',e=>{if(draggedCard)updateDrag(e);}); document.addEventListener('touchmove',e=>{if(draggedCard){e.preventDefault();updateDrag(e);}}, {passive:false}); document.addEventListener('mouseup',endDrag); document.addEventListener('touchend',endDrag); const wrapper=document.querySelector('.cards-scroll-wrapper'); let isScrolling=false,scrollStart=0; if (wrapper) { wrapper.addEventListener('touchstart',e=>{if(!draggedCard){isScrolling=true;scrollStart=e.touches[0].clientX-wrapper.scrollLeft;}},{passive:true}); wrapper.addEventListener('touchmove',e=>{if(!draggedCard&&isScrolling)wrapper.scrollLeft=scrollStart-e.touches[0].clientX;},{passive:true}); wrapper.addEventListener('touchend',()=>{isScrolling=false;}); } }
-document.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false}); let lastTouchEnd=0; document.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTouchEnd<=300)e.preventDefault();lastTouchEnd=now;},{passive:false}); document.querySelectorAll('.card').forEach(card => { card.addEventListener('click',e=>{if(draggedCard)return;const type=card.dataset.type,cost=parseInt(card.dataset.cost);if(!card.classList.contains('disabled')&&elixir>=cost)spawnUnit(type);}); });
+let draggedCard=null,dropZone=null; 
+const isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+function initMobileControls() { 
+    if (!gameArea) return; 
+    dropZone=document.createElement('div'); dropZone.className='drop-zone'; gameArea.appendChild(dropZone); 
+    if (isMobile) { const hint=document.createElement('div'); hint.className='swipe-hint'; hint.textContent='👆 Тяни карту'; gameArea.appendChild(hint); setTimeout(()=>hint.remove(),6000); } 
+    document.querySelectorAll('.card').forEach(card => { 
+        const type=card.dataset.type,cost=parseInt(card.dataset.cost);
+        const startDrag=(e) => {
+            if (card.classList.contains('disabled')||elixir<cost) return;
+            e.preventDefault();
+            draggedCard={type,cost,original:card,clone:card.cloneNode(true)};
+            draggedCard.clone.classList.add('dragging'); document.body.appendChild(draggedCard.clone);
+            card.style.opacity='0.3'; card.classList.add('touched'); updateDrag(e);
+        };
+        card.addEventListener('mousedown',startDrag); card.addEventListener('touchstart',startDrag,{passive:false});
+    });
+    const updateDrag=(e) => {
+        if (!draggedCard) return;
+        const cx=e.clientX||(e.touches?.[0]?.clientX),cy=e.clientY||(e.touches?.[0]?.clientY);
+        if (!cx||!cy) return;
+        draggedCard.clone.style.left=(cx-45)+'px'; draggedCard.clone.style.top=(cy-57)+'px';
+        const rect=gameArea.getBoundingClientRect(),x=cx-rect.left,y=cy-rect.top;
+        if (x>=0&&x<=rect.width&&y>=0&&y<=rect.height) { dropZone.classList.add('active'); dropZone.style.left=(x-30)+'px'; dropZone.style.top=(y-30)+'px'; }
+        else dropZone.classList.remove('active');
+    };
+    const endDrag=(e) => {
+        if (!draggedCard) return;
+        const cx=e.clientX||(e.changedTouches?.[0]?.clientX),cy=e.clientY||(e.changedTouches?.[0]?.clientY);
+        if (cx&&cy) {
+            const rect=gameArea.getBoundingClientRect(),x=cx-rect.left,y=cy-rect.top;
+            if (x>=0&&x<=rect.width&&y>=0&&y<=rect.height) {
+                const gx=Math.max(145,Math.min(255,x-20)),gy=Math.max(60,Math.min(540,y-20));
+                spawnUnitAt(draggedCard.type,gx,gy); createExplosion(gx+20,gy+20,'#f1c40f',15);
+            }
+        }
+        if (draggedCard.clone.parentNode) draggedCard.clone.parentNode.removeChild(draggedCard.clone);
+        draggedCard.original.style.opacity=''; draggedCard.original.classList.remove('touched');
+        dropZone.classList.remove('active'); draggedCard=null;
+    };
+    document.addEventListener('mousemove',e=>{if(draggedCard)updateDrag(e);});
+    document.addEventListener('touchmove',e=>{if(draggedCard){e.preventDefault();updateDrag(e);}}, {passive:false});
+    document.addEventListener('mouseup',endDrag); document.addEventListener('touchend',endDrag);
+    const wrapper=document.querySelector('.cards-scroll-wrapper'); let isScrolling=false,scrollStart=0;
+    if (wrapper) {
+        wrapper.addEventListener('touchstart',e=>{if(!draggedCard){isScrolling=true;scrollStart=e.touches[0].clientX-wrapper.scrollLeft;}},{passive:true});
+        wrapper.addEventListener('touchmove',e=>{if(!draggedCard&&isScrolling)wrapper.scrollLeft=scrollStart-e.touches[0].clientX;},{passive:true});
+        wrapper.addEventListener('touchend',()=>{isScrolling=false;});
+    }
+}
+
+document.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
+let lastTouchEnd=0;
+document.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTouchEnd<=300)e.preventDefault();lastTouchEnd=now;},{passive:false});
+
+document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click',e=>{if(draggedCard)return;const type=card.dataset.type,cost=parseInt(card.dataset.cost);if(!card.classList.contains('disabled')&&elixir>=cost)spawnUnit(type);});
+});
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 document.addEventListener('click',()=>{if(audioContext.state==='suspended')audioContext.resume();},{once:true});
-window.addEventListener('load',()=>{console.log('🎮 CLASH RAYON MULTIPLAYER v3.1 FIXED'); initSupabase();});
+window.addEventListener('load',()=>{console.log('🎮 CLASH RAYON MULTIPLAYER v3.2 FINAL'); initSupabase();});
